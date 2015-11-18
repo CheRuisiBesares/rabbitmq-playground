@@ -24,19 +24,6 @@ def generate_payloads(num_payloads, min_size, max_size):
     return result
 
 
-def setup_exchange(chan, opts):
-    if opts.exchange:
-        if opts.exchange_type:
-            chan.exchange_declare(exchange=opts.exchange, exchange_type=opts.exchange_type)
-        else:
-            chan.exchange_declare(exchange=opts.exchange)
-
-
-def setup_queue(chan, opts):
-    if opts.queue:
-        chan.queue_declare(queue=opts.queue, durable=opts.durable_queue)
-
-
 def publish(chan, opts):
     # Pre-generate all msg payloads to save time in the send loop.
     payloads = generate_payloads(opts.msg_per_second, opts.min_msg_size, opts.max_msg_size)
@@ -53,8 +40,7 @@ def publish(chan, opts):
         early_out = False
         for i in xrange(0, opts.msg_per_second):
             msg = random.choice(payloads)
-            chan.basic_publish(exchange=exch, routing_key=key,
-                               body=msg)
+            chan.basic_publish(exchange=exch, routing_key=key, body=msg)
 
             last_msg_count = i
             total_msgs += 1
@@ -77,12 +63,36 @@ def publish(chan, opts):
             interval_ts = default_timer()
 
 
+consumed_count = 0
+
+
+def _consumer_callback(ch, method, properties, body):
+    global consumed_count
+    consumed_count += 1
+    if consumed_count % 5000 == 0:
+        print "Consumed %d messages." % consumed_count
+
+
 def consume(chan, opts):
-    pass
+    if opts.prefetch:
+        chan.basic_qos(prefetch_count=opts.prefetch)
+
+    chan.basic_consume(_consumer_callback,
+                       queue=opts.queue,
+                       no_ack=True)
+
+    print "Starting consumer..."
+    chan.start_consuming()
 
 
 if __name__ == '__main__':
     parser = ArgumentParser(description='Testing RabbitMQ')
+    parser.add_argument('-r', dest='rabbit_addr', default="localhost",
+                        help="Address of Rabbit server.  In host or host:port form.")
+
+    parser.add_argument('-e', dest='exchange',
+                        help="Name of the exchange to use for publish/consume, if any.")
+
     parser.add_argument('-p', dest='publisher', action='store_true', default=False,
                         help="Run in PUBLISHER mode.")
     parser.add_argument('-k', dest='routing_key',
@@ -93,23 +103,22 @@ if __name__ == '__main__':
                         help="The minimum size of single message to publish.")
     parser.add_argument('-mmax', dest='max_msg_size', default=2048, type=int,
                         help="The maximum size of a single message to publish.")
+
     parser.add_argument('-c', dest='consumer', action='store_true', default=False,
                         help="Run in CONSUMER mode.")
-    parser.add_argument('-r', dest='rabbit_addr', default="localhost",
-                        help="Address of Rabbit server.  In host or host:port form.")
-    parser.add_argument('-e', dest='exchange',
-                        help="Name of the exchange to use, if any.")
-    parser.add_argument('-et', dest='exchange_type',
-                        help="Used with -e to declare what type of exchange to use.")
     parser.add_argument('-q', dest='queue',
-                        help="Name of the queue to use, if any.")
-    parser.add_argument('-dq', dest='durable_queue', action='store_true', default=False, required=True,
-                        help="Used with -q to make the queue durable.")
+                        help="Name of the queue to use when consuming, if any.")
+    parser.add_argument('-pfc', dest='prefetch', type=int,
+                        help="Prefetch count to use when consuming.")
 
     opts = parser.parse_args()
 
     if not opts.publisher and not opts.consumer:
         die_error("Specify a mode - publisher or consumer.")
+
+    if opts.publisher:
+        if not opts.msg_per_second or opts.msg_per_second < 1:
+            die_error("A value for msg_per_second is required for publishing.")
 
     try:
         if ':' in opts.rabbit_addr:
@@ -121,12 +130,12 @@ if __name__ == '__main__':
         conn = pika.BlockingConnection(params)
         chan = conn.channel()
 
-        setup_exchange(chan, opts)
-        setup_queue(chan, opts)
-
         if opts.publisher:
             publish(chan, opts)
         else:
+            if not opts.queue:
+                die_error("A queue name is required for consuming.")
+
             consume(chan, opts)
     finally:
         conn.close()
