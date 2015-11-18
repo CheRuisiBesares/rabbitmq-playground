@@ -1,0 +1,47 @@
+---
+  - hosts: "vagrant"
+    gather_facts: True 
+    sudo: True
+    vars:
+      ack_mode: on-publish
+      prefetch_count: 1000
+    tasks:
+      - name: make queue-to-topic-exchange queues on all hosts
+        command: > 
+          rabbitmqadmin declare queue 
+          name="queue-to-topic-exchange" 
+          durable=true 
+          auto_delete=false
+
+      - name: create queue-to-topic-exchange exchanges on all hosts
+        command: >
+          rabbitmqadmin declare exchange
+          name="queue-to-topic-exchange"
+          type="topic"
+          auto_delete=false
+          internal=false
+          durable=true
+
+      - name: create queue-to-topic-exchange bind
+        command: > 
+          rabbitmqadmin declare binding
+          source="queue-to-topic-exchange" 
+          destination_type="queue" 
+          destination="queue-to-topic-exchange"
+          routing_key="messages.#"
+
+      - name: connect shovel from upstreams to reciever's exchange
+        command: > 
+          rabbitmqctl set_parameter shovel queue-to-topic-exchange-shovel 
+          '{
+          "src-uri": "amqp://",
+          "dest-uri": "amqps://{{hostvars[groups.vagrant[0]]['ansible_eth1']['ipv4']['address']}}",
+          "src-queue": "queue-to-topic-exchange",
+          "dest-exchange": "queue-to-topic-exchange",
+          "prefetch-count": {{ prefetch_count }},
+          "reconnect-delay": 1,
+          "add-forward-headers": false,
+          "ack-mode": "{{ ack_mode }}",
+          "delete-after": "never"
+          }'
+        when: 'inventory_hostname != groups.vagrant[0]'

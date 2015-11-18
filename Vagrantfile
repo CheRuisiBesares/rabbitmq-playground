@@ -21,12 +21,19 @@ wget -O- -o/dev/null http://www.rabbitmq.com/rabbitmq-signing-key-public.asc | a
 && rabbitmq-plugins enable rabbitmq_federation \
 && rabbitmq-plugins enable rabbitmq_federation_management \
 && rabbitmq-plugins enable rabbitmq_shovel_management \
+&& rabbitmq-plugins enable rabbitmq_consistent_hash_exchange \
 && service rabbitmq-server restart \
 && curl -s http://localhost:15672/cli/rabbitmqadmin > /usr/local/bin/rabbitmqadmin \
 && chmod +x /usr/local/bin/rabbitmqadmin \
 && curl -s https://raw.githubusercontent.com/ModusCreateOrg/slow/master/slow > /usr/local/bin/slow \
-&& chmod +x /usr/local/bin/slow
+&& chmod +x /usr/local/bin/slow \
+&& apt-get install python-pip git-core \
+&& pip install pika==0.10.0
 SCRIPT
+# to late did the script
+#      box.vm.provision "ansible" do |ansible|
+#        ansible.playbook = "setup.yml"
+#      end
     end
   end
 end

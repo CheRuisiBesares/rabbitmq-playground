@@ -1,0 +1,90 @@
+---
+  - hosts: "vagrant"
+    gather_facts: True 
+    sudo: True
+    vars:
+      number_of_hashing_queues: 10
+      ack_mode: on-publish
+      prefetch_count: 1000
+    tasks:
+      - name: make consistent-hash-exchange queues on all sats
+        command: > 
+          rabbitmqadmin declare queue 
+          name="consistent-hash-exchange" 
+          durable=true 
+          auto_delete=false
+        when: 'inventory_hostname != groups.vagrant[0]'
+
+      - name: create consistent-hash-exchange exchanges on all sats
+        command: >
+          rabbitmqadmin declare exchange
+          name="consistent-hash-exchange"
+          type="topic"
+          auto_delete=false
+          internal=false
+          durable=true
+        when: 'inventory_hostname != groups.vagrant[0]'
+
+      - name: create consistent-hash-exchange bind on sats
+        command: > 
+          rabbitmqadmin declare binding
+          source="queue-to-topic-exchange" 
+          destination_type="queue" 
+          destination="queue-to-topic-exchange"
+          routing_key="messages.#"
+        when: 'inventory_hostname != groups.vagrant[0]'
+
+      - name: create hashing exchange on master
+        command: >
+          rabbitmqadmin declare exchange
+          name="consistent-hash-hashing-exchange"
+          type="x-consistent-hash"
+          auto_delete=false
+          internal=false
+          durable=true
+        when: 'inventory_hostname == groups.vagrant[0]'
+
+      - name: create hashing exchange on master
+        command: >
+          rabbitmqadmin declare exchange
+          name="consistent-hash-exchange"
+          type="x-consistent-hash"
+          auto_delete=false
+          internal=false
+          durable=true
+        when: 'inventory_hostname == groups.vagrant[0]'
+
+      - name: make consistent-hash-exchange queues on master
+        command: > 
+          rabbitmqadmin declare queue 
+          name="consistent-hash-exchange-{{ item }}" 
+          durable=true 
+          auto_delete=false
+        when: 'inventory_hostname == groups.vagrant[0]'
+        with_sequence: 'count={{ number_of_hashing_queues|int }}'
+
+      - name: create consistent-hash-exchange bind on master
+        command: > 
+          rabbitmqadmin declare binding
+          source="consistent-hash-exchange" 
+          destination_type="queue" 
+          destination=consistent-hash-exchange-{{ item }}
+          routing_key="10"
+        when: 'inventory_hostname == groups.vagrant[0]'
+        with_sequence: 'count={{ number_of_hashing_queues|int }}'
+
+      - name: connect shovel from upstreams to reciever's exchange
+        command: > 
+          rabbitmqctl set_parameter shovel consistent-hash-exchange-shovel 
+          '{
+          "src-uri": "amqp://",
+          "dest-uri": "amqps://{{hostvars[groups.vagrant[0]]['ansible_eth1']['ipv4']['address']}}",
+          "src-queue": "consistent-hash-exchange",
+          "dest-exchange": "consistent-hash-exchange",
+          "prefetch-count": {{ prefetch_count|int }},
+          "reconnect-delay": 1,
+          "add-forward-headers": false,
+          "ack-mode": "{{ ack_mode }}",
+          "delete-after": "never"
+          }'
+        when: 'inventory_hostname != groups.vagrant[0]'
