@@ -28,9 +28,9 @@
       - name: create consistent-hash-exchange bind on sats
         command: > 
           rabbitmqadmin declare binding
-          source="queue-to-topic-exchange" 
+          source="consistent-hash-exchange" 
           destination_type="queue" 
-          destination="queue-to-topic-exchange"
+          destination="consistent-hash-exchange"
           routing_key="messages.#"
         when: 'inventory_hostname != groups.vagrant[0]'
 
@@ -78,7 +78,7 @@
           rabbitmqctl set_parameter shovel consistent-hash-exchange-shovel 
           '{
           "src-uri": "amqp://",
-          "dest-uri": "amqps://{{hostvars[groups.vagrant[0]]['ansible_eth1']['ipv4']['address']}}",
+          "dest-uri": "amqp://rabbit:rabbit@{{hostvars[groups.vagrant[0]]['ansible_eth1']['ipv4']['address']}}",
           "src-queue": "consistent-hash-exchange",
           "dest-exchange": "consistent-hash-exchange",
           "prefetch-count": {{ prefetch_count|int }},

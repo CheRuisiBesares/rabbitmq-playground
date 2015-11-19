@@ -22,7 +22,12 @@ wget -O- -o/dev/null http://www.rabbitmq.com/rabbitmq-signing-key-public.asc | a
 && rabbitmq-plugins enable rabbitmq_federation_management \
 && rabbitmq-plugins enable rabbitmq_shovel_management \
 && rabbitmq-plugins enable rabbitmq_consistent_hash_exchange \
-&& service rabbitmq-server restart \
+&& rabbitmqctl add_user rabbit rabbit \
+&& rabbitmqctl set_user_tags rabbit administrator \
+&& rabbitmqctl set_permissions -p / rabbit ".*" ".*" ".*" \
+&& service rabbitmq-server stop \
+&& echo "TEMACKPYEHTRVSPGUTWM" > /var/lib/rabbitmq/.erlang.cookie \
+&& service rabbitmq-server start \
 && curl -s http://localhost:15672/cli/rabbitmqadmin > /usr/local/bin/rabbitmqadmin \
 && chmod +x /usr/local/bin/rabbitmqadmin \
 && curl -s https://raw.githubusercontent.com/ModusCreateOrg/slow/master/slow > /usr/local/bin/slow \

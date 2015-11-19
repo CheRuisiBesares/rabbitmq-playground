@@ -35,7 +35,7 @@
           rabbitmqctl set_parameter shovel queue-to-topic-exchange-shovel 
           '{
           "src-uri": "amqp://",
-          "dest-uri": "amqps://{{hostvars[groups.vagrant[0]]['ansible_eth1']['ipv4']['address']}}",
+          "dest-uri": "amqp://rabbit:rabbit@{{hostvars[groups.vagrant[0]]['ansible_eth1']['ipv4']['address']}}",
           "src-queue": "queue-to-topic-exchange",
           "dest-exchange": "queue-to-topic-exchange",
           "prefetch-count": {{ prefetch_count }},
