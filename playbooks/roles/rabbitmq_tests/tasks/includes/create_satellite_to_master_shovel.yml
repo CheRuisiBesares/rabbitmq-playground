@@ -1,0 +1,61 @@
+---
+
+#
+# Include this with the following vars defined
+# shovel_group_name -> the name of the federated exchange's policy
+# exchange_type -> type of exchange
+# target_master -> the master to shovel to
+# dest_exchange -> exchange to shovel to
+# dest_queue -> queue to shovel to
+#
+
+  - name: enable needed plugins
+    command: >
+      rabbitmq-plugins enable {{ item }}
+    with_items:
+      - rabbitmq_shovel
+      - rabbitmq_shovel_management
+
+  - name: make shovel queues on all sats
+    command: > 
+      rabbitmqadmin declare queue 
+      name="{{ shovel_group_name }}" 
+      durable=true 
+      auto_delete=false
+    when: inventory_hostname in groups.satellites
+
+  - name: create exchanges on all sats
+    command: >
+      rabbitmqadmin declare exchange
+      name="{{ shovel_group_name }}"
+      type="{{ exchange_type }}"
+      auto_delete=false
+      internal=false
+      durable=true
+    when: inventory_hostname in groups.satellites
+
+  - name: create bind
+    command: > 
+      rabbitmqadmin declare binding
+      source="{{ shovel_group_name }}" 
+      destination_type="queue" 
+      destination="{{ shovel_group_name }}"
+      routing_key="#"
+    when: inventory_hostname in groups.satellites
+
+  - name: connect shovel from upstreams to reciever's target
+    command: > 
+      rabbitmqctl set_parameter shovel queue-to-topic-exchange-shovel 
+      '{
+      "src-uri": "amqp://",
+      "dest-uri": "amqp://{{ rabbit_user_name }}:{{ rabbit_user_pass }}@{{hostvars[groups.masters[target_master]]['ansible_eth1']['ipv4']['address']}}",
+      "src-queue": "{{ shovel_group_name }}",
+      {% if dest_exchange is defined %}"dest-exchange": "{{ dest_exchange }}",{% endif %}
+      {% if dest_queue is defined %}"dest-queue": "{{ dest_queue }}",{% endif %}
+      "prefetch-count": {{ prefetch_count }},
+      "reconnect-delay": 1,
+      "add-forward-headers": false,
+      "ack-mode": "{{ ack_mode }}",
+      "delete-after": "never"
+      }'
+    when: 'inventory_hostname not in groups.masters'

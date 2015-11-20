@@ -1,0 +1,34 @@
+---
+
+  - include: includes/create_consistent_hash_exchange_with_queues.yml
+    vars:
+      exchange_name: consistent_hash_test
+      target: "{{ groups.masters[0] }}"
+      queues:
+        - 10
+        - 10
+        - 10 
+
+  - include: includes/create_federated_exchange.yml
+    vars:
+      exchange_name: consistent_hash_test_fed
+      exchange_type: topic
+
+  - name: create exchanges on master
+    command: >
+      rabbitmqadmin declare exchange
+      name="consistent_hash_test_fed"
+      type="topic"
+      auto_delete=false
+      internal=false
+      durable=true
+    when: inventory_hostname in groups.masters
+
+  - name: create bind
+    command: > 
+      rabbitmqadmin declare binding
+      source="consistent_hash_test_fed" 
+      destination_type="exchange" 
+      destination="consistent_hash_test"
+      routing_key="#"
+    when: inventory_hostname in groups.masters

@@ -1,0 +1,12 @@
+---
+
+  - name: setup groups
+    add_host: 
+      name: "{{ item.1 }}"
+      groups: "{% if item.0 < number_of_masters %}masters{% else%}satellites{% endif %}"
+      state: present
+    with_indexed_items: groups.all
+
+  - debug: var=groups
+
+  - include: "{{ task }}.yml"

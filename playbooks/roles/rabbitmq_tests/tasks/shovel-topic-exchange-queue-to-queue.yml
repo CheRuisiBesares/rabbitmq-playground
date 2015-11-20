@@ -1,0 +1,15 @@
+---
+  - include: includes/create_satellite_to_master_shovel.yml
+    vars:
+      shovel_group_name: shovel_test
+      exchange_type: topic
+      target_master: 0
+      dest_queue: shovel_test
+
+  - name: make queue on master
+    command: > 
+      rabbitmqadmin declare queue 
+      name="shovel_test" 
+      durable=true 
+      auto_delete=false
+    when: inventory_hostname in groups.masters

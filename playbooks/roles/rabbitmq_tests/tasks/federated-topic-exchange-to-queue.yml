@@ -1,0 +1,32 @@
+---
+  - include: includes/create_federated_exchange.yml
+    vars:
+      exchange_name: fed_test
+      exchange_type: topic
+
+  - name: make queue on master
+    command: > 
+      rabbitmqadmin declare queue 
+      name="fed_test" 
+      durable=true 
+      auto_delete=false
+    when: inventory_hostname in groups.masters
+
+  - name: create exchanges on master
+    command: >
+      rabbitmqadmin declare exchange
+      name="fed_test"
+      type="topic"
+      auto_delete=false
+      internal=false
+      durable=true
+    when: inventory_hostname in groups.masters
+
+  - name: create bind
+    command: > 
+      rabbitmqadmin declare binding
+      source="fed_test" 
+      destination_type="queue" 
+      destination="fed_test"
+      routing_key="#"
+    when: inventory_hostname in groups.masters

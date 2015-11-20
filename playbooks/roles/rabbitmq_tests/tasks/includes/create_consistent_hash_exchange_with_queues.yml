@@ -1,0 +1,48 @@
+---
+
+#
+# Include this with the following vars defined
+# exchange_name -> the name of the exchange
+# target -> machine to make exchange on
+# queues -> array weights
+#
+
+  - name: enable needed plugins
+    command: >
+      rabbitmq-plugins enable {{ item }}
+    with_items:
+      - rabbitmq_consistent_hash_exchange
+    when: >
+      '{{ inventory_hostname }}' == '{{ target }}'
+
+  - name: create hashing exchange on target
+    command: >
+      rabbitmqadmin declare exchange
+      name="{{ exchange_name }}"
+      type="x-consistent-hash"
+      auto_delete=false
+      internal=false
+      durable=true
+    when: >
+      '{{ inventory_hostname }}' == '{{ target }}'
+
+  - name: make consistent-hash-exchange queues on target
+    command: > 
+      rabbitmqadmin declare queue 
+      name="{{ exchange_name }}-queue-{{ item.0 }}" 
+      durable=true 
+      auto_delete=false
+    when: >
+      '{{ inventory_hostname }}' == '{{ target }}'
+    with_indexed_items: "{{ queues }}"
+
+  - name: create consistent-hash-exchange bind on master
+    command: > 
+      rabbitmqadmin declare binding
+      source="{{ exchange_name }}" 
+      destination_type="queue"
+      destination={{ exchange_name }}-queue-{{ item.0 }}
+      routing_key="{{ item.1 }}"
+    when: >
+      '{{ inventory_hostname }}' == '{{ target }}'
+    with_indexed_items: "{{ queues }}"

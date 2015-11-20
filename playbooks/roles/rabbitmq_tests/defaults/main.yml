@@ -1,0 +1,12 @@
+---
+apt_cache_valid_time: 3600
+cluster_cookie: TEMACKPYEHTRVSPGUTWM
+rabbit_user_name: rabbit
+rabbit_user_pass: rabbit
+number_of_masters: 1
+ack_mode: on-publish
+prefetch_count: 1000
+max_hops: 1
+additional_plugins:
+  - name: rabbitmq_sharding
+    url: http://www.rabbitmq.com/community-plugins/v3.5.x/rabbitmq_sharding-3.5.x-fe42a9b6.ez

@@ -1,0 +1,17 @@
+---
+  - name: reset all
+    shell: >
+      rabbitmqctl stop_app \
+      && rabbitmqctl reset \
+      && rabbitmqctl start_app
+
+  - name: setup rabbitmq user
+    rabbitmq_user: 
+      user: "{{ rabbit_user_name }}"
+      password: "{{ rabbit_user_pass}}"
+      vhost: /
+      configure_priv: .*
+      read_priv: .*
+      write_priv: .*
+      state: present
+      tags: administrator

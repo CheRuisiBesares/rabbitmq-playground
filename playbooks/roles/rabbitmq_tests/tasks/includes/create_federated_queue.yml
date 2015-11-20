@@ -1,0 +1,46 @@
+---
+
+#
+# Include this with the following vars defined
+# queue_name -> the name of the federated exchange's policy
+# exchange_type -> type of exchange
+#
+
+  - name: enable needed plugins
+    command: >
+      rabbitmq-plugins enable {{ item }}
+    with_items:
+      - rabbitmq_federation
+      - rabbitmq_federation_management
+
+  - name: set up federation from all satellite nodes to master
+    command: >
+      rabbitmqctl set_parameter federation-upstream {{item}}
+      '{
+      "uri":"amqp://{{ rabbit_user_name }}:{{ rabbit_user_pass }}@{{hostvars[item]['ansible_eth1']['ipv4']['address']}}",
+      "trust-user-id":true,
+      "max-hops": {{ max_hops }},
+      "prefetch-count": {{ prefetch_count }}
+      }'
+    with_items: "groups.satellites"
+    when: 'inventory_hostname not in groups.masters'
+
+  - name: set up an upstream-set from masters to satellites
+    command: >
+        rabbitmqctl set_parameter federation-upstream-set satellites 
+        '[{% for i in groups.satellites %}{"upstream":"{{ i }}"}{% if not loop.last %},{% endif %}{%endfor%}]'
+    when: 'inventory_hostname in groups.masters'
+
+  - name: set up rabbitmq federation policy for messages exchange
+    command: >
+      rabbitmqctl set_policy federate-{{ queue_name }} "^{{ queue_name }}$" 
+      '{"federation-upstream-set":"satellites"}'
+    when: 'inventory_hostname in groups.masters'
+
+  - name: create fed-queues on all hosts
+    command: >
+      rabbitmqadmin declare queue
+      name="{{ queue_name }}"
+      auto_delete=false
+      internal=false
+      durable=true

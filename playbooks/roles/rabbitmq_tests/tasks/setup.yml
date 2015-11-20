@@ -1,0 +1,100 @@
+---
+
+  - name: install deps and python-software-properties
+    apt:
+      package: "{{ item }}"
+      state: installed
+      update_cache: yes 
+      cache_valid_time: "{{ apt_cache_valid_time }}"
+    with_items:
+      - python-pip
+      - git-core
+      - python-software-properties
+
+  - name: add rabbitmq repo key
+    apt_key:
+      url: http://www.rabbitmq.com/rabbitmq-signing-key-public.asc
+      state: present
+
+  - name: add rabbitmq repo
+    apt_repository:
+      repo: "deb http://www.rabbitmq.com/debian/ testing main" 
+      state: present
+      update_cache: yes
+
+  - name: install rabbitmq
+    apt:
+      package: "rabbitmq-server"
+      state: installed
+      update_cache: yes 
+      cache_valid_time: "{{ apt_cache_valid_time }}"
+
+  - name: ensure rabbit running
+    service: 
+      name: rabbitmq-server
+      state: started
+
+  - name: set erlang cookie incase we want a cluster
+    shell: |
+      if [[ <(/var/lib/rabbitmq/.erlang.cookie) != {{ cluster_cookie }} ]] ; then
+        service rabbitmq-server stop \
+        && echo {{ cluster_cookie }} > /var/lib/rabbitmq/.erlang.cookie \
+        && service rabbitmq-server start
+      fi
+    args:
+      executable: /bin/bash
+
+  - name: set erlang cookie incase we want a cluster
+    file:
+      state: file
+      path: /var/lib/rabbitmq/.erlang.cookie
+      owner: rabbitmq
+      group: rabbitmq
+      mode: 0600
+    notify: reload rabbitmq-server
+
+  - name: determine rabbit version
+    shell: >
+      echo /usr/lib/rabbitmq/lib/rabbitmq_server-*/plugins
+    register: rabbit_plugin_path
+
+  - name: get additional plugins
+    get_url:
+      url: "{{ item.url }}"
+      dest: "{{ rabbit_plugin_path.stdout }}/{{ item.name }}-3.5.x.ez"
+      mode: 0777
+      force: yes
+    with_items: "{{ additional_plugins }}"
+
+  - name: enable rabbitmq managment
+    command: >
+      rabbitmq-plugins enable rabbitmq_management
+
+  - name: setup rabitadmin command
+    get_url:
+      url: http://localhost:15672/cli/rabbitmqadmin
+      dest: /usr/local/sbin/rabbitmqadmin
+      mode: 0777
+      force: yes
+
+  - name: setup slow command
+    get_url:
+      url: https://raw.githubusercontent.com/ModusCreateOrg/slow/master/slow
+      dest: /usr/local/bin/slow
+      mode: 0777
+      force: yes
+
+  - name: install pika
+    pip:
+      name: pika==0.10.0
+
+  - name: setup rabbitmq user
+    rabbitmq_user: 
+      user: "{{ rabbit_user_name }}"
+      password: "{{ rabbit_user_pass}}"
+      vhost: /
+      tags: administrator
+      configure_priv: .*
+      read_priv: .*
+      write_priv: .*
+      state: present

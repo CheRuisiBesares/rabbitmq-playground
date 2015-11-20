@@ -1,0 +1,38 @@
+---
+
+#
+# Include this with the following vars defined
+# exchange_name -> the name of the exchange
+# shards_per_node -> number of queues
+# target -> machine to make exchange on
+# routing_key -> defaults to #
+#
+
+  - name: enable needed plugins
+    command: >
+      rabbitmq-plugins enable {{ item }}
+    with_items:
+      - rabbitmq_sharding
+    when: >
+      '{{ inventory_hostname }}' == '{{ target }}'
+
+  - name: create hashing exchange on target
+    command: >
+      rabbitmqadmin declare exchange
+      name="{{ exchange_name }}"
+      type="x-modulus-hash"
+      auto_delete=false
+      internal=false
+      durable=true
+    when: >
+      '{{ inventory_hostname }}' == '{{ target }}'
+
+  - name: create consistent-hash-exchange
+    command: >
+      rabbitmqctl set_policy {{ exchange_name }} "^{{ exchange_name }}$" 
+      '{
+        "shards-per-node": {{ shards_per_node|int }}, 
+        "routing-key": "{{ routing_key|default('#') }}"
+      }'   
+    when: >
+      '{{ inventory_hostname }}' == '{{ target }}'
